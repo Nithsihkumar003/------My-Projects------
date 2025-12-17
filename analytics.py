@@ -9,7 +9,8 @@ st.title("📊 Pond Water Analytics Report")
 
 # --- DATA LOADING ---
 # Use raw string (r"...") or forward slashes for Windows paths to avoid errors
-DATA_PATH = r"C:\Pond_data_analysis\data\shape-filtering-final.xlsx"
+DATA_PATH = "data/shape-filtering-final.xlsx"
+
 
 
 @st.cache_data

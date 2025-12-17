@@ -3,7 +3,8 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 
-DATA_PATH = "C:\Pond_data_analysis\data\shape-filtering-final.xlsx"
+DATA_PATH = "data/shape-filtering-final.xlsx"
+
 IMG_DIR = "images"
 
 @st.cache_data
