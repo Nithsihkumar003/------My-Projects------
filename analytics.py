@@ -177,12 +177,13 @@ c_rank, c_risk = st.columns(2)
 
 with c_rank:
     st.subheader("🏆 Most Reliable Ponds")
-    st.caption("Ponds that had water most frequently.")
+    st.caption("Ponds that had water most frequently (Scroll to see all).")
 
     # Calculate % as integer 0-100
+    # REMOVED .head(10) so it shows ALL ponds
     ranking = df.groupby("PondID")["Status"].apply(
         lambda x: (x.astype(str).str.contains("Water", case=False).sum()) / len(x) * 100
-    ).sort_values(ascending=False).head(10).reset_index(name="Consistency")
+    ).sort_values(ascending=False).reset_index(name="Consistency")
 
     st.dataframe(
         ranking,
@@ -190,18 +191,19 @@ with c_rank:
             "PondID": st.column_config.NumberColumn("Pond ID", format="%d"),
             "Consistency": st.column_config.ProgressColumn(
                 "Water Consistency",
-                format="%d%%",  # Integer percentage format
+                format="%d%%",
                 min_value=0,
                 max_value=100
             )
         },
         hide_index=True,
-        use_container_width=True
+        use_container_width=True,
+        height=500  # Fixed height makes it scrollable
     )
 
 with c_risk:
     st.subheader("⚠️ High-Risk (Dry) Ponds")
-    st.caption("Ponds that are frequently fallow/dry.")
+    st.caption("Ponds that are frequently fallow/dry (Scroll to see all).")
 
     # Calculate % as integer 0-100
     risk_stats = df.assign(
@@ -212,7 +214,8 @@ with c_risk:
     )
     risk_stats["DryRatio"] = (risk_stats["Fallow"] / risk_stats["Total"]) * 100
 
-    high_risk = risk_stats[risk_stats["DryRatio"] >= 50].sort_values("DryRatio", ascending=False).head(10)
+    # REMOVED .head(10) so it shows ALL risky ponds
+    high_risk = risk_stats[risk_stats["DryRatio"] >= 50].sort_values("DryRatio", ascending=False)
 
     st.dataframe(
         high_risk.reset_index(),
@@ -220,13 +223,14 @@ with c_risk:
             "PondID": st.column_config.NumberColumn("Pond ID", format="%d"),
             "DryRatio": st.column_config.ProgressColumn(
                 "Dryness Risk",
-                format="%d%%",  # Integer percentage format
+                format="%d%%",
                 min_value=0,
                 max_value=100,
             )
         },
         hide_index=True,
-        use_container_width=True
+        use_container_width=True,
+        height=500  # Fixed height makes it scrollable
     )
 
 # --- 4️⃣ IMAGE GALLERY PREVIEW ---
