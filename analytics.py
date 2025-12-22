@@ -13,13 +13,11 @@ st.set_page_config(
 )
 
 # --- 🟢 SETUP: IMAGE FOLDER ---
-# Ensure this matches your actual folder name
-IMG_DIR = "images"
+IMG_DIR = "images"  # change if your folder name is different
 
 # --- 🎨 STYLING (Dark Mode Friendly) ---
 st.markdown("""
 <style>
-    /* Metric Cards */
     .metric-card {
         background-color: #0E1117;
         border: 1px solid #262730;
@@ -41,7 +39,6 @@ st.markdown("""
         font-weight: 700;
         margin-top: 5px;
     }
-    /* Remove default dataframe index */
     thead tr th:first-child {display:none}
     tbody th {display:none}
 </style>
@@ -57,14 +54,14 @@ def load_data():
         return None
     df = pd.read_excel(DATA_PATH, sheet_name=0)
 
-    # Standardize column names
     rename_map = {
-        "Pond_ID": "PondID", "Month_Year": "MonthYear",
-        "NDVI_Mean": "NDVIMean", "VV_Mean": "VVMean"
+        "Pond_ID": "PondID",
+        "Month_Year": "MonthYear",
+        "NDVI_Mean": "NDVIMean",
+        "VV_Mean": "VVMean"
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
-    # Process types
     df["Date"] = pd.to_datetime(df["MonthYear"], format="%Y-%m", errors="coerce")
     for c in ["NDVIMean", "VVMean"]:
         if c in df.columns:
@@ -73,7 +70,6 @@ def load_data():
 
 
 df = load_data()
-
 if df is None:
     st.error(f"❌ Critical Error: Data file not found at '{DATA_PATH}'. Please check the 'data' folder.")
     st.stop()
@@ -88,6 +84,40 @@ if selected_year != "All":
 else:
     df_filtered = df
 
+
+# --- 🧠 POND-LEVEL CONDITION CLASSIFICATION ---
+def classify_pond(group: pd.DataFrame) -> pd.Series:
+    total = len(group)
+    water = group["Status"].astype(str).str.contains("Water", case=False, na=False).sum()
+    fallow = group["Status"].astype(str).str.contains("Fallow", case=False, na=False).sum()
+
+    water_ratio = water / total if total > 0 else 0
+    fallow_ratio = fallow / total if total > 0 else 0
+    ndvi_mean = group["NDVIMean"].mean()
+
+    # Rule-based classification (you can tune thresholds later)
+    if water_ratio >= 0.7:
+        label = "Stable Water Pond"
+    elif 0.3 <= water_ratio < 0.7:
+        label = "Seasonal / Intermediate Pond"
+    elif fallow_ratio >= 0.7 and ndvi_mean is not None and ndvi_mean > 0.3:
+        label = "Not a Pond (Agriculture / Land)"
+    else:
+        label = "Uncertain / Needs Field Check"
+
+    return pd.Series({
+        "TotalMonths": total,
+        "WaterMonths": water,
+        "FallowMonths": fallow,
+        "WaterRatio": water_ratio,
+        "FallowRatio": fallow_ratio,
+        "NDVI_Mean": ndvi_mean,
+        "Condition": label
+    })
+
+
+pond_summary = df.groupby("PondID").apply(classify_pond).reset_index()
+
 # --- 🏠 MAIN DASHBOARD HEADER ---
 st.title("💧 Pond Water Monitoring Analytics")
 st.markdown("### Executive Summary of Water Availability & Pond Health")
@@ -96,8 +126,8 @@ st.markdown("---")
 # --- 1️⃣ KEY PERFORMANCE INDICATORS (KPIs) ---
 total_ponds = df_filtered["PondID"].nunique()
 total_records = len(df_filtered)
-water_count = df_filtered["Status"].astype(str).str.contains("Water", case=False).sum()
-fallow_count = df_filtered["Status"].astype(str).str.contains("Fallow", case=False).sum()
+water_count = df_filtered["Status"].astype(str).str.contains("Water", case=False, na=False).sum()
+fallow_count = df_filtered["Status"].astype(str).str.contains("Fallow", case=False, na=False).sum()
 
 c1, c2, c3, c4 = st.columns(4)
 
@@ -111,14 +141,55 @@ def metric_card(label, value, color_hex="#FFF"):
     """
 
 
-c1.markdown(metric_card("Total Ponds", total_ponds, "#3498db"), unsafe_allow_html=True)  # Blue
-c2.markdown(metric_card("Total Observations", total_records, "#ecf0f1"), unsafe_allow_html=True)  # White
-c3.markdown(metric_card("Water Detected (Months)", water_count, "#2ecc71"), unsafe_allow_html=True)  # Green
-c4.markdown(metric_card("Dry / Fallow (Months)", fallow_count, "#e74c3c"), unsafe_allow_html=True)  # Red
+c1.markdown(metric_card("Total Ponds", total_ponds, "#3498db"), unsafe_allow_html=True)
+c2.markdown(metric_card("Total Observations", total_records, "#ecf0f1"), unsafe_allow_html=True)
+c3.markdown(metric_card("Water Detected (Months)", water_count, "#2ecc71"), unsafe_allow_html=True)
+c4.markdown(metric_card("Dry / Fallow (Months)", fallow_count, "#e74c3c"), unsafe_allow_html=True)
 
-st.write("")  # Spacer
+st.write("")
 
-# --- 2️⃣ VISUAL ANALYTICS ---
+# --- 2️⃣ CONDITION OVERVIEW (WHAT YOUR MANAGER ASKED) ---
+st.subheader("🧩 Pond Condition Classification")
+
+cond_counts = pond_summary["Condition"].value_counts().reset_index()
+cond_counts.columns = ["Condition", "Count"]
+
+fig_cond = px.bar(
+    cond_counts,
+    x="Condition",
+    y="Count",
+    color="Condition",
+    color_discrete_map={
+        "Stable Water Pond": "#2ecc71",
+        "Seasonal / Intermediate Pond": "#f1c40f",
+        "Not a Pond (Agriculture / Land)": "#e74c3c",
+        "Uncertain / Needs Field Check": "#95a5a6"
+    }
+)
+fig_cond.update_layout(xaxis_title="", yaxis_title="Number of Ponds")
+st.plotly_chart(fig_cond, use_container_width=True)
+
+# Condition table with filter
+st.markdown("#### 🔎 Pond-wise Condition Table")
+cond_filter = st.selectbox(
+    "Filter by condition",
+    ["All"] + cond_counts["Condition"].tolist()
+)
+
+if cond_filter != "All":
+    pond_view = pond_summary[pond_summary["Condition"] == cond_filter]
+else:
+    pond_view = pond_summary
+
+st.dataframe(
+    pond_view.sort_values("WaterRatio", ascending=False),
+    use_container_width=True,
+    height=400
+)
+
+st.markdown("---")
+
+# --- 3️⃣ VISUAL ANALYTICS (STATUS + SEASONAL TRENDS) ---
 col_left, col_right = st.columns([1.2, 1.8])
 
 with col_left:
@@ -126,12 +197,11 @@ with col_left:
     status_counts = df_filtered["Status"].value_counts().reset_index()
     status_counts.columns = ["Status", "Count"]
 
-    # Professional Color Scheme
     color_map = {
-        "Water Present - High Confidence": "#004d99",  # Deep Navy
-        "Water Present - Low Confidence": "#3399ff",  # Bright Blue
-        "Fallow": "#a0522d",  # Sienna Brown
-        "Cant determine": "#7f8c8d"  # Gray
+        "Water Present - High Confidence": "#004d99",
+        "Water Present - Low Confidence": "#3399ff",
+        "Fallow": "#a0522d",
+        "Cant determine": "#7f8c8d"
     }
 
     fig_donut = px.pie(
@@ -150,15 +220,14 @@ with col_right:
     st.subheader("📈 Seasonal Water Trends")
     df_filtered["MonthStr"] = df_filtered["Date"].dt.strftime("%Y-%m")
 
-    # Filter only water records for trend
-    water_mask = df_filtered["Status"].astype(str).str.contains("Water", case=False)
+    water_mask = df_filtered["Status"].astype(str).str.contains("Water", case=False, na=False)
     trend = df_filtered[water_mask].groupby("MonthStr")["PondID"].nunique().reset_index()
 
     if not trend.empty:
         fig_trend = px.area(
             trend, x="MonthStr", y="PondID",
             markers=True,
-            color_discrete_sequence=["#2ecc71"]  # Green area
+            color_discrete_sequence=["#2ecc71"]
         )
         fig_trend.update_layout(
             xaxis_title="Month",
@@ -172,17 +241,15 @@ with col_right:
 
 st.markdown("---")
 
-# --- 3️⃣ DETAILED TABLES (Reliability & Risk) ---
+# --- 4️⃣ RELIABILITY & RISK TABLES (ALL PONDS, SCROLLABLE) ---
 c_rank, c_risk = st.columns(2)
 
 with c_rank:
     st.subheader("🏆 Most Reliable Ponds")
-    st.caption("Ponds that had water most frequently (Scroll to see all).")
+    st.caption("Ponds that had water most frequently (scroll to see all).")
 
-    # Calculate % as integer 0-100
-    # REMOVED .head(10) so it shows ALL ponds
     ranking = df.groupby("PondID")["Status"].apply(
-        lambda x: (x.astype(str).str.contains("Water", case=False).sum()) / len(x) * 100
+        lambda x: (x.astype(str).str.contains("Water", case=False, na=False).sum()) / len(x) * 100
     ).sort_values(ascending=False).reset_index(name="Consistency")
 
     st.dataframe(
@@ -198,23 +265,21 @@ with c_rank:
         },
         hide_index=True,
         use_container_width=True,
-        height=500  # Fixed height makes it scrollable
+        height=400
     )
 
 with c_risk:
     st.subheader("⚠️ High-Risk (Dry) Ponds")
-    st.caption("Ponds that are frequently fallow/dry (Scroll to see all).")
+    st.caption("Ponds that are frequently fallow/dry (scroll to see all).")
 
-    # Calculate % as integer 0-100
     risk_stats = df.assign(
-        IsFallow=df["Status"].astype(str).str.contains("Fallow", case=False)
+        IsFallow=df["Status"].astype(str).str.contains("Fallow", case=False, na=False)
     ).groupby("PondID").agg(
         Total=("PondID", "size"),
         Fallow=("IsFallow", "sum")
     )
     risk_stats["DryRatio"] = (risk_stats["Fallow"] / risk_stats["Total"]) * 100
 
-    # REMOVED .head(10) so it shows ALL risky ponds
     high_risk = risk_stats[risk_stats["DryRatio"] >= 50].sort_values("DryRatio", ascending=False)
 
     st.dataframe(
@@ -230,11 +295,10 @@ with c_risk:
         },
         hide_index=True,
         use_container_width=True,
-        height=500  # Fixed height makes it scrollable
+        height=400
     )
 
-# --- 4️⃣ IMAGE GALLERY PREVIEW ---
-# --- 4️⃣ FULL IMAGE GALLERY ---
+# --- 5️⃣ FULL IMAGE GALLERY ---
 st.markdown("---")
 st.subheader("📸 Pond Image Gallery")
 
@@ -242,12 +306,10 @@ if os.path.exists(IMG_DIR):
     all_files = sorted([f for f in os.listdir(IMG_DIR) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
 
     if all_files:
-        # OPTION A: Select specific image
         col_sel, col_view = st.columns([1, 3])
 
         with col_sel:
             st.markdown("**🔍 View Specific Pond**")
-            # Try to extract numbers from filenames for easier sorting
             selected_file = st.selectbox("Select Image File", all_files)
 
         with col_view:
@@ -255,31 +317,35 @@ if os.path.exists(IMG_DIR):
                 img_path = os.path.join(IMG_DIR, selected_file)
                 st.image(img_path, caption=f"Displaying: {selected_file}", width=600)
 
-        # OPTION B: Browse All (Grid View)
         with st.expander("📂 Click to View All Images (Scrollable Grid)"):
             st.write(f"Found {len(all_files)} images.")
-
-            # Create a 4-column grid
             cols = st.columns(4)
             for idx, file_name in enumerate(all_files):
                 img_path = os.path.join(IMG_DIR, file_name)
                 with cols[idx % 4]:
                     st.image(img_path, caption=file_name, use_container_width=True)
-
     else:
         st.warning(f"No images found in '{IMG_DIR}'. Please check file extensions.")
 else:
-    st.info("ℹ️ Image gallery hidden (Image folder not found).")
+    st.info("ℹ️ Image gallery hidden (image folder not found).")
 
-# --- 5️⃣ AUTOMATED INSIGHTS ---
+# --- 6️⃣ SMART INSIGHTS ---
 st.markdown("---")
 st.subheader("💡 Smart Insights")
 
 with st.container():
+    # Fix: Access the index instead of column "PondID"
+    top_risk_pond = int(high_risk.index[0]) if not high_risk.empty else "N/A"
+
     st.info(f"""
-    **1. Overall Health:** The dataset tracks **{total_ponds} ponds**. We found **{water_count}** confirmed water instances versus **{fallow_count}** dry instances.
+    **1. Condition-based Analytics:** Each pond is classified as *Stable Water*, *Seasonal*, 
+    *Not a Pond (Agriculture / Land)*, or *Uncertain* based on water/fallow frequency and NDVI behaviour.
 
-    **2. Seasonal Pattern:** As shown in the *Seasonal Water Trends* chart, water availability varies significantly by month. Use the **Year Filter** on the left to analyze specific drought or monsoon years.
+    **2. Monitoring Focus:** Use the *High-Risk (Dry) Ponds* table and the 
+    *Not a Pond (Agriculture / Land)* filter in the condition table to quickly locate 
+    features that behave like agriculture fields instead of true ponds.
 
-    **3. Critical Areas:** The *High-Risk Table* identifies ponds (like ID **{high_risk.index[0] if not high_risk.empty else 'N/A'}**) that are dry more than 50% of the time. These require immediate field verification.
+    **3. Critical Areas:** Pond ID **{top_risk_pond}** and other high-risk ponds are dry more than 50% of the time 
+    and should be prioritised for field verification or remedial action.
     """)
+
