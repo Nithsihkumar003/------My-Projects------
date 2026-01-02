@@ -10,7 +10,7 @@ IMG_DIR = "images"
 def load_data(xlsx_file):
     df = pd.read_excel(xlsx_file, sheet_name=0)
 
-    # Normalize column names (adjust if your sheet differs)
+    
     rename_map = {
         "Pond_ID": "PondID",
         "Month_Year": "MonthYear",
@@ -75,7 +75,7 @@ def make_plot(dfp: pd.DataFrame, pond_id: int):
 st.set_page_config(page_title="Pond Water Monitoring", layout="wide")
 st.title("Pond Water Monitoring Dashboard")
 
-# OPTION A (client-friendly): allow user to upload Excel in the app
+
 uploaded_xlsx = st.file_uploader("Upload Excel (.xlsx)", type=["xlsx"])  # file-like object [web:80]
 
 xlsx_to_use = uploaded_xlsx if uploaded_xlsx is not None else DATA_PATH
@@ -88,7 +88,7 @@ d = df[df["PondID"].astype(int) == int(pond_id)].sort_values("Date")
 # 1) make sure Date is valid
 d = d.dropna(subset=["Date"])
 
-# 2) convert pandas.Timestamp -> python datetime (fixes Streamlit slider issue)
+
 min_d = d["Date"].min().to_pydatetime()
 max_d = d["Date"].max().to_pydatetime()
 
@@ -132,7 +132,7 @@ with right:
         mime="text/csv"
     )
 
-    # Show corresponding pond image if present
+ 
     img_path = os.path.join(IMG_DIR, f"Pond_{pond_id}_Final.jpg")
     if os.path.exists(img_path):
         st.image(img_path, caption=os.path.basename(img_path), use_container_width=True)
