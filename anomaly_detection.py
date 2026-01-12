@@ -6,21 +6,29 @@ import os
 st.set_page_config(page_title="AI Anomaly Detection", layout="wide")
 st.title("🤖 AI Anomaly Detection (Statistical)")
 
-DATA_PATH = r"C:\Pond_data_analysis\@PROJECT\shape-filtering-final.xlsx"
+# ✅ FIXED: Use relative path
+DATA_PATH = "data/shape-filtering-final.xlsx"
 
 
 @st.cache_data
 def load_data():
-    if not os.path.exists(DATA_PATH): return None
+    if not os.path.exists(DATA_PATH): 
+        return None
     df = pd.read_excel(DATA_PATH, sheet_name=0)
     rename_map = {"Pond_ID": "PondID", "Month_Year": "MonthYear", "NDVI_Mean": "NDVIMean"}
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
     df["Date"] = pd.to_datetime(df["MonthYear"], format="%Y-%m", errors="coerce")
+    
+    # ✅ ADDED: Convert NDVI to numeric (prevents errors)
+    df["NDVIMean"] = pd.to_numeric(df["NDVIMean"], errors="coerce")
+    
     return df
 
 
 df = load_data()
-if df is None: st.error("Data missing"); st.stop()
+if df is None: 
+    st.error("❌ Data file not found. Make sure 'data/shape-filtering-final.xlsx' exists.")
+    st.stop()
 
 # --- TYPE B: STATISTICAL ANOMALY DETECTION (Z-SCORE) ---
 st.header("1. Statistical Outlier Detection")
@@ -36,17 +44,25 @@ for pond in df["PondID"].unique():
     if len(pond_data) < 5:
         continue
 
+    # ✅ FIXED: Drop NaN values before calculating statistics
+    pond_data = pond_data.dropna(subset=["NDVIMean"])
+    
+    if len(pond_data) < 5:  # Check again after dropping NaN
+        continue
+
     # Calculate Statistics
     mean_ndvi = pond_data["NDVIMean"].mean()
     std_ndvi = pond_data["NDVIMean"].std()
+    
+    # ✅ FIXED: Prevent division by zero
+    if std_ndvi == 0 or pd.isna(std_ndvi):
+        continue
 
     # Calculate Z-Score for every month
-    # Formula: (Value - Mean) / Standard_Deviation
     pond_data["Z_Score"] = (pond_data["NDVIMean"] - mean_ndvi) / std_ndvi
 
-    # Find Anomalies (Z-Score < -2 means unusually LOW water)
-    # (Z-Score > 2 would mean unusually HIGH vegetation/water, usually less critical)
-    outliers = pond_data[pond_data["Z_Score"] < -1.96]  # 1.96 is 95% confidence interval
+    # Find Anomalies (Z-Score < -1.96 means unusually LOW water)
+    outliers = pond_data[pond_data["Z_Score"] < -1.96]
 
     for _, row in outliers.iterrows():
         anomalies.append({
@@ -70,13 +86,13 @@ if not anomaly_df.empty:
         st.write(f"Found **{len(anomaly_df)}** unusual events across all ponds.")
         st.dataframe(
             anomaly_df[["PondID", "Date", "NDVI", "Deviation_Score"]],
-            use_container_width=True
+            use_container_width=True,
+            height=400
         )
 
     with col2:
         st.subheader("Deep Dive Inspector")
-        # Select an anomaly to visualize
-        selected_pond = st.selectbox("Select Pond to Inspect", anomaly_df["PondID"].unique())
+        selected_pond = st.selectbox("Select Pond to Inspect", sorted(anomaly_df["PondID"].unique()))
 
         # Get data for that pond
         chart_data = df[df["PondID"] == selected_pond].sort_values("Date")
@@ -100,7 +116,7 @@ if not anomaly_df.empty:
 
         st.plotly_chart(fig, use_container_width=True)
         st.caption(
-            "The Red X marks months where the water/vegetation was statistically much lower than normal for this specific pond.")
+            "🔴 Red X marks months where water/vegetation was statistically much lower than normal for this pond.")
 
 else:
-    st.success("No statistical anomalies found in the dataset.")
+    st.success("✅ No statistical anomalies found in the dataset.")
