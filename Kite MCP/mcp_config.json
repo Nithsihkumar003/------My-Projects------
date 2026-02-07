@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kite": {
+      "command": "python",
+      "args": ["mcp_inspector.py"]
+    }
+  }
+}
