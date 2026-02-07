@@ -9,7 +9,7 @@ import os
 class DesktopAgent:
     def __init__(self):
         self.window = tk.Tk()
-        self.window.title("🤖 PC Agent")
+        self.window.title("PC Agent")
         self.window.configure(bg="#1a1a1a")
 
         self.last_search_results = []
@@ -20,7 +20,7 @@ class DesktopAgent:
         """Search files and store results"""
         result = search_files(query, directory="all", max_results=10, file_type=file_type)
 
-        # Extract file paths - IMPROVED PARSER
+        # Extract file paths from search results
         self.last_search_results = []
         lines = result.split('\n')
 
@@ -47,30 +47,30 @@ class DesktopAgent:
 
                     if os.path.exists(path):
                         self.last_search_results.append(path)
-                        print(f"✅ Added file {len(self.last_search_results)}: {os.path.basename(path)}")
+                        print(f"Added file {len(self.last_search_results)}: {os.path.basename(path)}")
                 except Exception as e:
-                    print(f"⚠️ Parse error: {e}")
+                    print(f"Parse error: {e}")
                     continue
 
-        print(f"📋 Total files ready to open: {len(self.last_search_results)}")
+        print(f"Total files ready to open: {len(self.last_search_results)}")
         return result
 
     def open_file(self, file_number: int) -> str:
         """Open file by number"""
         try:
-            print(f"\n🔍 Trying to open file #{file_number}")
-            print(f"📂 Available files: {len(self.last_search_results)}")
+            print(f"\nTrying to open file #{file_number}")
+            print(f"Available files: {len(self.last_search_results)}")
 
             index = file_number - 1
             if 0 <= index < len(self.last_search_results):
                 filepath = self.last_search_results[index]
-                print(f"📂 Opening: {filepath}")
+                print(f"Opening: {filepath}")
                 os.startfile(filepath)
-                return f"✅ Opening: {os.path.basename(filepath)}"
+                return f"Opening: {os.path.basename(filepath)}"
             else:
-                return f"❌ File #{file_number} not found. Only {len(self.last_search_results)} files available."
+                return f"File #{file_number} not found. Only {len(self.last_search_results)} files available."
         except Exception as e:
-            return f"❌ Error opening file: {e}"
+            return f"Error opening file: {e}"
 
     def process_command_simple(self, command: str) -> str:
         """Process command - handles ANY file type"""
@@ -114,10 +114,10 @@ class DesktopAgent:
             if self.last_search_results:
                 return self.open_file(1)
             else:
-                return "❌ No files to open. Search for files first!"
+                return "No files to open. Search for files first!"
 
         else:
-            return f"""❌ Command not understood: "{command}"
+            return f"""Command not understood: "{command}"
 
 Try: "find music" • "search documents" • "open 1" """
 
@@ -143,7 +143,7 @@ Try: "find music" • "search documents" • "open 1" """
 
         tk.Label(
             header_frame,
-            text="🤖 PC Agent",
+            text="PC Agent",
             font=("Segoe UI", 18, "bold"),
             bg=accent_green,
             fg="#000000"
@@ -152,7 +152,7 @@ Try: "find music" • "search documents" • "open 1" """
         drives = get_all_drives()
         tk.Label(
             header_frame,
-            text=f"💾 {', '.join(drives)}",
+            text=f"Drives: {', '.join(drives)}",
             font=("Segoe UI", 10),
             bg=accent_green,
             fg="#000000"
@@ -271,7 +271,7 @@ Try: "find music" • "search documents" • "open 1" """
         self.output_text.insert(tk.END, f"\n{'=' * 80}\n")
         self.output_text.insert(tk.END, f"You: {command}\n")
         self.output_text.insert(tk.END, f"{'=' * 80}\n")
-        self.send_button.config(state=tk.DISABLED, text="⏳")
+        self.send_button.config(state=tk.DISABLED, text="Processing...")
 
         thread = threading.Thread(target=self.execute_command, args=(command,))
         thread.start()
@@ -281,12 +281,12 @@ Try: "find music" • "search documents" • "open 1" """
             result = self.process_command_simple(command)
             self.window.after(0, self.display_result, result)
         except Exception as e:
-            self.window.after(0, self.display_result, f"❌ Error: {e}")
+            self.window.after(0, self.display_result, f"Error: {e}")
         finally:
             self.window.after(0, lambda: self.send_button.config(state=tk.NORMAL, text="Execute"))
 
     def display_result(self, result):
-        self.output_text.insert(tk.END, f"\n🤖 Agent:\n{result}\n")
+        self.output_text.insert(tk.END, f"\nAgent:\n{result}\n")
         self.output_text.see(tk.END)
 
     def run(self):

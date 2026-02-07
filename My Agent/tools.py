@@ -39,7 +39,7 @@ def search_files(query: str, directory: str = "all", max_results: int = 10, file
     else:
         extensions = []
 
-    # Search only common user folders (MUCH FASTER!)
+    # Search only common user folders for better performance
     user_home = os.path.expanduser("~")
     common_folders = [
         os.path.join(user_home, "Desktop"),
@@ -51,13 +51,13 @@ def search_files(query: str, directory: str = "all", max_results: int = 10, file
         "E:/",  # Search entire E: drive
     ]
 
-    # If E: drive exists, search it completely
+    # Add E: drive if it exists
     if os.path.exists("E:/"):
         common_folders.append("E:/")
 
-    print(f"🔍 Searching in user folders for '{query}'...")
+    print(f"Searching in user folders for '{query}'...")
     if file_type != "all":
-        print(f"📁 Filtering for: {file_type} files")
+        print(f"Filtering for: {file_type} files")
 
     # Search in each directory
     for search_dir in common_folders:
@@ -108,12 +108,12 @@ def search_files(query: str, directory: str = "all", max_results: int = 10, file
             break
 
     if matches:
-        result = f"✅ Found {len(matches)} file(s):\n\n"
+        result = f"Found {len(matches)} file(s):\n\n"
         for i, (path, size) in enumerate(matches):
             result += f"{i + 1}. {path} ({size:.2f} MB)\n"
         return result
     else:
-        return f"❌ No files found matching '{query}' in common folders"
+        return f"No files found matching '{query}' in common folders"
 
 
 # Test
